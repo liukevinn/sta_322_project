@@ -8,7 +8,7 @@ First create the stratified sampling design, where each department is a stratum
 
 ```{r}
 library(survey)
-faculty = read.csv("data/faculty.csv", header = T)
+faculty = read.csv("faculty.csv", header = T)
 
 facultydes = svydesign(id = ~1, strata = ~dept, weights = ~w, fpc = ~M_h, data = faculty)
 ```
