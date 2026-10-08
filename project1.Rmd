@@ -1,0 +1,47 @@
+---
+title: "Methods 5"
+author: "Eric Guan, Kevin Liu"
+output: pdf_document
+---
+
+First create the stratified sampling design, where each department is a stratum
+
+```{r}
+library(survey)
+faculty = read.csv("data/faculty.csv", header = T)
+
+facultydes = svydesign(id = ~1, strata = ~dept, weights = ~w, fpc = ~M_h, data = faculty)
+```
+
+**Question 1:**
+
+```{r}
+women_frac = svymean(~sex, facultydes)
+women_frac
+confint(women_frac, level = .95)
+```
+
+**Question 2:**
+
+```{r}
+has_grant_frac = svymean(~grant_2026, facultydes)
+has_grant_frac
+confint(has_grant_frac)
+```
+
+**Question 3:**
+
+```{r}
+phddes = subset(facultydes, has_phd == 1)
+avg_years_phd = svymean(~years_since_phd, phddes, na.rm = TRUE)
+avg_years_phd
+confint(avg_years_phd, level = .95)
+```
+
+**Question 4:**
+
+```{r}
+phd_duke_frac = svymean(~phd_duke, phddes, nam.rm = TRUE)
+phd_duke_frac
+confint(phd_duke_frac, level = 0.95)
+```
