@@ -1,0 +1,148 @@
+---
+title: "STA 322 Project 1: A Survey of Trinity College Faculty"
+author: "NAME 1 and NAME 2"
+date: "October 9, 2026"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+library(dplyr)
+library(readr)
+library(survey)
+library(knitr)
+```
+
+# 1. Population and sampling frame
+
+**Target population.** Tenured and tenure-track faculty (Assistant, Associate, and Full Professors)
+whose *primary* appointment is in one of the 27 departments of Trinity College of Arts & Sciences,
+as listed on Scholars@Duke in October 2026. Excluded: emeriti; professors of the practice;
+lecturers and instructors; research, adjunct, and visiting faculty; and people whose primary
+appointment is outside Trinity (e.g., School of Medicine faculty with a secondary Trinity appointment).
+Interdisciplinary programs (e.g., Linguistics, Dance) contain no eligible primary appointments, so
+the population is the same whether or not they are counted.
+
+**Frame construction.** Starting from the Scholars@Duke people search filtered to
+*Trinity College of Arts & Sciences* and *Faculty* (1,440 people), we recorded only each person's
+profile link, name and headline title. We assigned each person to one department using the primary
+appointment recorded in Scholars, and we assigned departments to divisions using Trinity's own
+division pages. This left $N = 495$ eligible faculty in 27 departments. No survey variables were
+collected for anyone outside the sample.
+
+```{r frame}
+frame <- read_csv("frame.csv", show_col_types = FALSE)
+kable(frame |> select(division, dept, M_i), col.names = c("Division", "Department", "Eligible faculty"))
+```
+
+# 2. Survey design and justification
+
+We used a **stratified simple random sample**, with the 27 departments as strata.
+
+* *Why stratify by department?* The fraction of women (our primary target) plausibly differs a lot
+  across fields. Stratifying removes between-department variation from the sampling error, and
+  proportional allocation can never do worse than an SRS of the same size.
+* *Why not cluster sampling?* Clustering saves cost when reaching a cluster is the expensive step.
+  Here every sampled person is a separate profile lookup, and the full frame was already available,
+  so sampling only some departments would lose precision without saving any time.
+* *Allocation.* Proportional to department size, targeting $n = 120$, with a minimum of 2 per
+  department so that every within-stratum variance can be estimated. Rounding and the minimum give
+  $n = 124$.
+
+```{r sample}
+dat <- read_csv("data.csv", show_col_types = FALSE)
+kable(dat |> distinct(dept, M_h, n_h, pi, w) |> arrange(dept),
+      digits = 3, col.names = c("Department", "$N_h$", "$n_h$", "$\\pi_i$", "$w_i$"))
+```
+
+# 3. Inclusion probabilities and weights
+
+Within department $h$, each eligible person is selected with probability $\pi_i = n_h / N_h$, so
+their weight is $w_i = N_h / n_h$. The weights sum to $N = 495$. Because of the minimum of 2 per
+stratum, small departments are slightly oversampled, so the weights are not all equal. The
+Horvitz–Thompson estimator therefore reduces to $\sum_h (N_h/N)\,\bar y_h$. We use the exact
+stratified-SRS variance with a finite population correction in each stratum.
+
+```{r design}
+dat <- dat |>
+  mutate(female = as.integer(sex == "F"),
+         phd_duke = ifelse(has_phd == 1, phd_duke, NA))
+stopifnot(sum(dat$w) - 495 < 1e-8)
+des <- svydesign(id = ~1, strata = ~dept, fpc = ~M_h, data = dat)
+```
+
+# 4. Sample size
+
+We sampled 124 of 495 eligible faculty (25%). Planning on the worst case $p = 0.5$ and ignoring
+the stratification gain, the 95% margin of error for Q1 is about $\pm 7.6$ percentage points.
+
+# 5. Data collection and coding rules
+
+Data were taken from each sampled person's Scholars@Duke record, reading the public profile and
+its official data feed, in October 2026.
+
+| Variable | Rule |
+|---|---|
+| `sex` | Coded by us from the profile (photo, name, pronouns in bio). `pronoun_hint` counts pronouns in the bio as an aid. |
+| `grant_2026` | 1 if any listed grant, fellowship or gift has a start-to-end interval overlapping calendar year 2026; 0 otherwise, including when none are listed. |
+| `has_phd` | 1 if a Ph.D. or D.Phil. is listed; 0 if education is listed without a PhD (e.g., MFA, JD, DMA); missing if no education is listed. |
+| `years_since_phd` | 2026 minus the PhD year (the earliest PhD if more than one is listed). |
+| `phd_duke` | 1 if the PhD is from Duke University; defined only for PhD holders. |
+
+# 6. Results
+
+```{r results}
+ci_prop <- function(f, d) {
+  est <- svyciprop(f, d, method = "logit")   # logit CI keeps bounds inside [0, 1]
+  c(estimate = unname(coef(est)), SE = unname(SE(est)), lower = confint(est)[1], upper = confint(est)[2])
+}
+phd_des <- subset(des, has_phd == 1)
+q3 <- svymean(~years_since_phd, phd_des, na.rm = TRUE)
+
+res <- rbind(
+  "Q1. Fraction women"                       = ci_prop(~female, des),
+  "Q2. Fraction with grant ongoing in 2026"  = ci_prop(~grant_2026, des),
+  "Q3. Mean years since PhD (PhD holders)"   = c(coef(q3), SE(q3), confint(q3)),
+  "Q4. Fraction of PhD holders with Duke PhD" = ci_prop(~phd_duke, phd_des)
+)
+kable(res, digits = 3, col.names = c("Estimate", "SE", "95% CI lower", "95% CI upper"))
+```
+
+For comparison, the unweighted sample results:
+
+```{r naive}
+dat |> summarise(female = mean(female), grant_2026 = mean(grant_2026),
+                 years_since_phd = mean(years_since_phd[has_phd == 1], na.rm = TRUE),
+                 phd_duke = mean(phd_duke, na.rm = TRUE)) |> kable(digits = 3)
+```
+
+*Interpretation: TO WRITE.*
+
+Optional breakdown by division, using domain estimates:
+
+```{r by-division}
+svyby(~female + grant_2026, ~division, des, svymean) |> kable(digits = 3)
+```
+
+# 7. Limitations
+
+* **Measurement error in sex.** Sex was judged by us from public profile information, not
+  self-reported, and may be misclassified.
+* **Grant undercount.** Scholars lists the grants faculty choose to display, and some profiles show
+  none. Unlisted grants are coded 0, so `grant_2026` is a lower bound.
+* **Grant dates.** We counted any award whose listed interval overlaps 2026. Records with missing or
+  outdated end dates may be misclassified.
+* **Frame coverage.** The frame is only as current as Scholars@Duke. People with outdated titles or
+  primary appointments, or without a profile, are misclassified or missing.
+* **Missing education.** Profiles without education data are excluded from Q3 and Q4, which
+  assumes they are missing at random.
+* **Small strata.** Several departments have only 2 sampled people, so their within-stratum
+  variance estimates are unstable.
+
+# Appendix: code
+
+Frame construction (`build_frame.py`, `annotate_frame.py`, `map_divisions.py`), sample selection
+(`sample.R`, seed 21) and data collection (`collect.py`) are included with the submission.
+
+```{r appendix-sample, code=readLines("sample.R"), eval=FALSE}
+```
