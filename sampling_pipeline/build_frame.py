@@ -5,9 +5,7 @@ appointment is in one of the 27 Trinity departments. We get every Trinity appoin
 from the Scholars@Duke data feed in a single request and keep only the frame fields
 (name, title, department, profile link).
 
-Writes:
-  roster_all.csv  one row per eligible faculty member
-  frame.csv       the 27 departments and how many eligible faculty each has (M_i)
+Writes roster_all.csv: one row per eligible faculty member.
 """
 import csv
 import json
@@ -35,7 +33,6 @@ DIVISION = {
     "Evolutionary Anthropology": NAT, "Mathematics": NAT, "Physics": NAT,
     "Psychology & Neuroscience": NAT, "Statistical Science": NAT,
 }
-FLAGS = {"Psychology & Neuroscience": "cross-listed by Trinity in Natural AND Social Sciences"}
 
 # Trinity units that are programs, centers etc. rather than departments. Anything in the
 # feed that is in neither list gets printed so it can't be dropped silently.
@@ -63,13 +60,6 @@ def rank_of(title):
     return (match.group(1) or "Full").strip() if match else None
 
 
-def write_csv(path, rows, fields):
-    with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fields)
-        writer.writeheader()
-        writer.writerows(rows)
-
-
 def main():
     request = urllib.request.Request(SOURCE, headers={"User-Agent": "STA322 class project (frame build)"})
     appointments = json.load(urllib.request.urlopen(request, timeout=60))
@@ -95,17 +85,12 @@ def main():
     for person in sorted(eligible, key=lambda p: (p["division"], p["dept"], p["name"])):
         roster.setdefault(person["profile_url"], person)
     roster = list(roster.values())
-    write_csv("roster_all.csv", roster,
-              ["dept", "division", "name", "rank", "title", "profile_url"])
+    with open("roster_all.csv", "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["dept", "division", "name", "rank", "title", "profile_url"])
+        writer.writeheader()
+        writer.writerows(roster)
 
-    size = Counter(p["dept"] for p in roster)
-    departments = sorted(DIVISION, key=lambda d: (DIVISION[d], d))
-    write_csv("frame.csv",
-              [{"dept": d, "division": DIVISION[d], "M_i": size[d], "flag": FLAGS.get(d, ""),
-                "roster_source_url": SOURCE} for d in departments],
-              ["dept", "division", "M_i", "flag", "roster_source_url"])
-
-    print(f"{len(roster)} eligible faculty in {len(size)} departments")
+    print(f"{len(roster)} eligible faculty in {len({p['dept'] for p in roster})} departments")
     if unclassified:
         print("UNCLASSIFIED units (excluded, please review):", dict(unclassified))
 
