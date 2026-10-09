@@ -12,8 +12,8 @@ frame <- read_csv("roster_all.csv", show_col_types = FALSE) |>
 N <- nrow(frame)
 
 allocation <- frame |>
-  count(division, dept, name = "M_h") |>
-  mutate(n_h = pmin(M_h, pmax(2, round(120 * M_h / N))))
+  count(division, dept, name = "N_h") |>
+  mutate(n_h = pmin(N_h, pmax(2, round(120 * N_h / N))))
 
 set.seed(21)
 sampled <- frame |>
@@ -21,8 +21,8 @@ sampled <- frame |>
   group_by(dept) |>
   group_modify(~ .x[sample(nrow(.x), .x$n_h[1]), ]) |>
   ungroup() |>
-  mutate(pi = n_h / M_h, w = 1 / pi) |>
-  select(name, dept, M_h, n_h, pi, w, profile_url)   # profile_url is used to collect the data
+  mutate(pi = n_h / N_h, w = 1 / pi) |>
+  select(name, dept, N_h, n_h, pi, w, profile_url)   # profile_url is used to collect the data
 
 write_csv(sampled, "sample.csv")
 

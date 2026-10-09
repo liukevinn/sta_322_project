@@ -27,7 +27,7 @@ HEADERS = {"User-Agent": "STA322 class project (sampled profiles only)"}
 PAUSE = 1.5      # seconds between requests
 YEAR = 2026
 PHD = re.compile(r"^(Ph\.?\s?D\.?|D\.?\s?Phil\.?|Doctor of Philosophy)$", re.I)
-DESIGN = ["name", "dept", "M_h", "n_h", "pi", "w"]
+DESIGN = ["name", "dept", "N_h", "n_h", "pi", "w"]
 
 
 def fetch(url):
