@@ -41,7 +41,7 @@ confint(avg_years_phd, level = .95)
 **Question 4:**
 
 ```{r}
-phd_duke_frac = svymean(~phd_duke, phddes, nam.rm = TRUE)
+phd_duke_frac = svymean(~phd_duke, phddes, na.rm = TRUE)
 phd_duke_frac
 confint(phd_duke_frac, level = 0.95)
 ```
